@@ -7,10 +7,17 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const fitnessContext = `
 You are FitAI, an intelligent assistant for a personal training business. Be helpful, encouraging, and focus on qualifying leads for the trainer.
 
+IMPORTANT FORMATTING RULES:
+- Use **bold text** for key points and section headers
+- Use line breaks to separate different sections
+- Include relevant emojis to make the response engaging (💪, 🏋️, 🔥, ⚡, 🎯, 🥗, 📅, 💰, 👋)
+- Keep responses concise but informative (3-5 sentences max)
+- Always end by suggesting booking a free consultation
+
 Key guidelines:
-- Provide brief, helpful fitness advice (2-3 sentences max)
-- Always suggest booking a free consultation
-- Be professional but friendly
+- Provide brief, helpful fitness advice with emojis
+- Always suggest booking a free consultation with 📅 emoji
+- Be professional but friendly and motivational
 - Never give medical advice
 - Focus on qualifying leads for the personal trainer
 - If asked about topics not related to fitness politely redirect them back to fitness advice
@@ -18,6 +25,19 @@ Key guidelines:
 Trainer specialties: weight loss, muscle building, functional training
 Services: 1-on-1 training ($75/session), small groups ($35/session), online coaching
 Free consultation: 15-minute strategy session
+
+Example response format:
+**Great question!** 💭
+
+I recommend starting with 3-4 weekly workouts combining strength + cardio.
+
+🏋️ **Key Focus:**
+• Compound exercises
+• Proper form
+• Consistency
+
+📅 **Next Step:**
+Want to book a free consultation to create your personalized plan?
 `;
 
 export async function generateAIResponse(
@@ -48,7 +68,9 @@ Assistant:`;
 
     const result = await model.generateContent(fullPrompt);
     const response = await result.response;
-    return response.text();
+    
+    // Apply final formatting to the AI response
+    return formatAIResponse(response.text());
     
   } catch (error: unknown) {
     console.error('Gemini API error:', error);
@@ -66,6 +88,7 @@ Assistant:`;
 // Function to try different model names
 async function tryAlternativeModels(userMessage: string): Promise<string> {
   const alternatives = [
+    'gemini-1.5-flash',
     'gemini-1.0-pro',
     'gemini-1.0-pro-001',
     'models/gemini-pro'
@@ -76,12 +99,12 @@ async function tryAlternativeModels(userMessage: string): Promise<string> {
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
       const model = genAI.getGenerativeModel({ model: modelName });
       
-      const prompt = `As a fitness assistant, briefly help with: ${userMessage}`;
+      const prompt = `As a fitness assistant, provide brief, engaging advice with emojis about: ${userMessage}`;
       const result = await model.generateContent(prompt);
       const response = await result.response;
       
       console.log(`✅ Success with model: ${modelName}`);
-      return response.text();
+      return formatAIResponse(response.text());
     } catch (error) {
       console.log(`❌ Failed with model: ${modelName}`);
       // Continue to next model
@@ -91,22 +114,74 @@ async function tryAlternativeModels(userMessage: string): Promise<string> {
   return getFallbackResponse(userMessage);
 }
 
+// Enhanced formatting for AI responses
+function formatAIResponse(response: string): string {
+  // Clean up any markdown artifacts and ensure proper formatting
+  let formatted = response
+    .replace(/```/g, '') // Remove code blocks
+    .replace(/\*\*(.*?)\*\*/g, '**$1**') // Ensure bold formatting
+    .trim();
+
+  // Add emoji mapping for common fitness terms
+  const emojiMap: { [key: string]: string } = {
+    'workout': '💪',
+    'exercise': '🏋️',
+    'nutrition': '🥗',
+    'diet': '🍎',
+    'weight loss': '🔥',
+    'muscle': '💪',
+    'strength': '🏋️',
+    'beginner': '🎯',
+    'consultation': '📅',
+    'session': '⏱️',
+    'price': '💰',
+    'goal': '🎯',
+    'help': '⚡',
+    'plan': '📊'
+  };
+
+  // Add relevant emojis to the response
+  Object.entries(emojiMap).forEach(([term, emoji]) => {
+    if (formatted.toLowerCase().includes(term.toLowerCase()) && !formatted.includes(emoji)) {
+      formatted = formatted.replace(new RegExp(`\\b${term}\\b`, 'gi'), `${emoji} ${term}`);
+    }
+  });
+
+  // Ensure it ends with a consultation call-to-action if not already present
+  if (!formatted.includes('consultation') && !formatted.includes('📅')) {
+    formatted += '\n\n📅 **Ready to start?**\nBook a free consultation to create your personalized plan!';
+  }
+
+  return formatted;
+}
+
 function getFallbackResponse(userMessage: string): string {
   const message = userMessage.toLowerCase();
   
   const responses: { [key: string]: string } = {
-    workout: "I'd recommend starting with 3-4 weekly workouts combining strength training and cardio. Our trainer can create a personalized plan for your specific goals - want to book a free consultation?",
-    exercise: "Great question! For beginners, I suggest bodyweight exercises like squats, push-ups, and planks. Our trainer can show you proper form and create a customized routine - interested in a free session?",
-    'lose weight': "Awesome goal! Weight loss success comes from consistent exercise and proper nutrition. Our trainer has helped many clients achieve lasting results - want to learn about our personalized programs?",
-    fat: "Body fat reduction works best with a combination of strength training and cardio. Our trainer develops customized plans that actually work - interested in a free strategy session?",
-    muscle: "Building muscle requires progressive overload and proper nutrition. Our strength training specialists can guide you safely - want to try a free introductory workout?",
-    strength: "Strength training is fantastic for overall health! Our trainer focuses on proper form and effective programming - interested in learning about our strength packages?",
-    beginner: "Welcome to your fitness journey! Starting safely is crucial. Our trainer specializes in beginner-friendly programs that build confidence - want to schedule a free introductory session?",
-    start: "Perfect time to start! We begin with an assessment to create the right plan for you. Our trainer offers a risk-free trial session - want to try one?",
-    price: "We offer competitive pricing! 1-on-1 training starts at $75/session, small groups at $35/session. Let me help you book a free consultation to discuss the best options for your goals!",
-    cost: "Our packages are designed for different budgets. The best way to get accurate pricing is through a free consultation where we assess your goals - want to schedule one?",
-    nutrition: "Nutrition is key! While I can't give specific diet advice, our trainer provides general guidance and can refer you to nutrition specialists. Want to discuss your nutrition goals in a free consultation?",
-    diet: "Nutrition plays a huge role in fitness results! Our trainer offers general food guidance as part of all training programs. Interested in learning more during a free session?"
+    workout: "💪 **Workout Plan Ready!** \n\nI recommend starting with 3-4 weekly sessions combining strength + cardio.\n\n🏋️ **Sample Routine:**\n• Full body workouts\n• Progressive overload\n• Proper form focus\n\n📅 Want to book a free consultation for your personalized plan?",
+    
+    exercise: "⚡ **Exercise Guidance!** \n\nPerfect! For effective training:\n\n🎯 **Key Principles:**\n• Compound movements\n• Proper technique\n• Consistency over intensity\n\n🏋️ Our trainer can design a personalized program - interested in a free session?",
+    
+    'lose weight': "🔥 **Weight Loss Strategy!** \n\nExcellent goal! Sustainable weight loss combines:\n\n🥗 Smart nutrition\n💪 Regular exercise\n📊 Consistent habits\n\n🎯 Most clients see results in 4-6 weeks! Want to schedule a free strategy session?",
+    
+    fat: "⚡ **Fat Loss Formula!** \n\nEffective fat reduction requires:\n\n💪 Strength training (metabolism boost)\n🏃 Cardio sessions\n🥗 Calorie management\n\n📅 Our trainer creates customized programs - interested in a consultation?",
+    
+    muscle: "💪 **Muscle Building Blueprint!** \n\nBuilding muscle requires:\n\n🏋️ Progressive overload\n🥗 Protein focus\n😴 Proper recovery\n\n🎯 Want to try a free introductory session with our strength specialists?",
+    
+    strength: "🏋️ **Strength Training Program!** \n\nStrength training builds:\n\n💪 Muscle mass\n⚡ Metabolism\n🛡️ Joint protection\n\n🔥 Interested in learning about our strength packages during a free consultation?",
+    
+    beginner: "🎯 **Welcome to Fitness!** \n\nStarting safely is crucial! Our beginner program includes:\n\n✅ Form instruction\n✅ Gradual progression\n✅ Confidence building\n\n😊 Want to schedule a free introductory session?",
+    
+    start: "🚀 **Perfect Time to Begin!** \n\nWe start with a comprehensive assessment:\n\n📊 Fitness evaluation\n🎯 Goal setting\n💪 Custom program design\n\n📅 Want to experience the difference with a free trial session?",
+    
+    price: "💰 **Investment in Your Health!** \n\nWe offer competitive pricing:\n\n💎 1-on-1: $75/session\n👥 Groups: $35/session\n📦 Packages: Save 15-20%\n\n🎯 Want to book a free consultation to discuss options?",
+    
+    cost: "📊 **Budget-Friendly Options!** \n\nOur packages fit various budgets:\n\n💎 Personal training\n👥 Small groups\n🌐 Online coaching\n\n🔥 Package deals offer the best value. Free consultation available!",
+    
+    nutrition: "🥗 **Nutrition Accelerator!** \n\nNutrition enhances results by:\n\n⚡ Boosting energy\n💪 Supporting recovery\n🔥 Enhancing fat loss\n\n🍎 Want to discuss nutrition in a free consultation?",
+    
+    diet: "🍎 **Fuel for Results!** \n\nProper nutrition accelerates fitness results!\n\n🥗 Meal timing\n💪 Protein optimization\n🎯 Nutrient density\n\n📊 Free consultation includes nutrition guidance!"
   };
 
   // Find the best matching response
@@ -116,6 +191,6 @@ function getFallbackResponse(userMessage: string): string {
     }
   }
   
-  // Default response for anything else
-  return "Thanks for your message! I'd love to help you reach your fitness goals. Our certified trainer offers free 15-minute consultations to create your personalized plan - interested in booking one?";
+  // Default response with Streamline formatting
+  return "💭 **Great Question!** \n\nOur certified trainer would love to provide personalized advice!\n\n🎯 **Free consultation includes:**\n• Goal assessment\n• Custom plan outline\n• Pricing options\n\n📅 Would you like to book a session?";
 }
