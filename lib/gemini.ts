@@ -1,6 +1,6 @@
 // lib/gemini.ts
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { ChatMessage } from '@/types/index';
+import { ChatMessage } from '@/types';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -17,13 +17,6 @@ Key guidelines:
 Trainer specialties: weight loss, muscle building, functional training
 Services: 1-on-1 training ($75/session), small groups ($35/session), online coaching
 Free consultation: 15-minute strategy session
-
-Example responses:
-User: "I want to lose weight"
-Response: "That's a great goal! Consistency with nutrition and exercise is key. Our trainer creates personalized weight loss plans - want to book a free consultation to discuss your goals?"
-
-User: "What's a good workout?"
-Response: "I recommend starting with full-body workouts 3x/week. Our trainer can design a personalized program based on your equipment and goals - interested in a free session?"
 `;
 
 export async function generateAIResponse(
@@ -38,7 +31,7 @@ export async function generateAIResponse(
   try {
     // Use the correct model configuration
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash", // This should work now
+      model: "gemini-pro",
     });
 
     // Build the full prompt with context
@@ -56,15 +49,11 @@ Assistant:`;
     const response = await result.response;
     return response.text();
     
-  } catch (error: any) {
-    console.error('Gemini API error details:', {
-      message: error.message,
-      status: error.status,
-      details: error.errorDetails
-    });
+  } catch (error: unknown) {
+    console.error('Gemini API error:', error);
     
     // Try alternative model names
-    if (error.message.includes('404') || error.message.includes('not found')) {
+    if (error instanceof Error && (error.message.includes('404') || error.message.includes('not found'))) {
       console.log('Trying alternative model names...');
       return await tryAlternativeModels(userMessage);
     }
@@ -76,7 +65,8 @@ Assistant:`;
 // Function to try different model names
 async function tryAlternativeModels(userMessage: string): Promise<string> {
   const alternatives = [
-    'gemini-2.5-flash',
+    'gemini-1.0-pro',
+    'gemini-1.0-pro-001',
     'models/gemini-pro'
   ];
 
@@ -93,6 +83,7 @@ async function tryAlternativeModels(userMessage: string): Promise<string> {
       return response.text();
     } catch (error) {
       console.log(`❌ Failed with model: ${modelName}`);
+      // Continue to next model
     }
   }
   
