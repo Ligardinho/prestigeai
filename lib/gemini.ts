@@ -1,6 +1,6 @@
 // lib/gemini.ts
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { ChatMessage } from '@/my-fixed-project/types';
+import { ChatMessage } from '@/types/index';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
