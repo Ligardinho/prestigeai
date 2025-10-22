@@ -1,7 +1,7 @@
 // components/LeadCaptureForm.tsx
 'use client';
 import { useState, FormEvent } from 'react';
-import { LeadFormData } from '@/my-fixed-project/types';
+import { LeadFormData } from '@/types';
 
 interface LeadCaptureFormProps {
   onLeadCaptured?: (leadData: LeadFormData) => void;

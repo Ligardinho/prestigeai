@@ -2,7 +2,7 @@
 'use client';
 import { useState, useRef, useEffect, FormEvent } from 'react';
 import LeadCaptureForm from './LeadCaptureForm';
-import { ChatMessage, LeadFormData } from '@/my-fixed-project/types';
+import { ChatMessage, LeadFormData } from '@/types';
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>([
