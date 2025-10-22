@@ -31,7 +31,7 @@ export async function generateAIResponse(
   try {
     // Use the correct model configuration
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-pro",
+      model: "gemini-2.5-flash",
     });
 
     // Build the full prompt with context
