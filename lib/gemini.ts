@@ -42,6 +42,11 @@ Remember: Always be encouraging, professional, and focus on moving toward the co
 // Store conversation state in memory (for demo - in production you'd use a proper database)
 const conversationStates = new Map();
 
+interface ConversationState {
+  step: number;
+  collectedData: Record<string, string>;
+}
+
 export async function generateAIResponse(
   userMessage: string, 
   conversationHistory: ChatMessage[] = [],
@@ -59,14 +64,14 @@ export async function generateAIResponse(
 
     // Get or create conversation state
     if (!sessionId) sessionId = 'default';
-    let state = conversationStates.get(sessionId) || {
+    const currentState = conversationStates.get(sessionId) || {
       step: 0,
       collectedData: {}
     };
 
     // Build conversation context with current state
-    const stateContext = state.step > 0 ? 
-      `\n\nCurrent qualification step: ${state.step}/6\nCollected so far: ${JSON.stringify(state.collectedData)}` : 
+    const stateContext = currentState.step > 0 ? 
+      `\n\nCurrent qualification step: ${currentState.step}/6\nCollected so far: ${JSON.stringify(currentState.collectedData)}` : 
       '';
 
     const fullPrompt = `${fitnessContext}${stateContext}
@@ -84,7 +89,7 @@ Assistant:`;
     const aiResponse = response.text();
 
     // Update conversation state based on response
-    updateConversationState(sessionId, userMessage, aiResponse, state);
+    updateConversationState(sessionId, userMessage, aiResponse, currentState);
 
     return aiResponse;
     
@@ -99,7 +104,12 @@ Assistant:`;
   }
 }
 
-function updateConversationState(sessionId: string, userMessage: string, aiResponse: string, currentState: any) {
+function updateConversationState(
+  sessionId: string, 
+  userMessage: string, 
+  aiResponse: string, 
+  currentState: ConversationState
+): void {
   // Simple state management - in production you'd want more sophisticated logic
   const bookingKeywords = ['book', 'consult', 'schedule', 'meeting', 'appointment'];
   const isBookingRelated = bookingKeywords.some(keyword => 
@@ -125,6 +135,7 @@ function updateConversationState(sessionId: string, userMessage: string, aiRespo
     currentState.step = 6;
   } else if (aiResponse.includes("calendly.com")) {
     currentState.step = 0; // Reset after booking
+    currentState.collectedData = {}; // Clear collected data
   }
 
   conversationStates.set(sessionId, currentState);
@@ -148,8 +159,9 @@ async function tryAlternativeModels(userMessage: string): Promise<string> {
       
       console.log(`✅ Success with model: ${modelName}`);
       return response.text();
-    } catch (error) {
+    } catch (modelError) {
       console.log(`❌ Failed with model: ${modelName}`);
+      // Continue to next model
     }
   }
   
