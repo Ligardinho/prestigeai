@@ -34,10 +34,11 @@ export default function FloatingChatWidget() {
     { label: '🔄 Toning', value: 'I want to tone and define my muscles' }
   ];
 
-  // Check if mobile on mount
+  // Check if mobile on mount and handle resize
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
     };
     
     checkMobile();
@@ -45,6 +46,25 @@ export default function FloatingChatWidget() {
     
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Prevent zoom on focus for mobile devices
+  useEffect(() => {
+    const preventZoom = (e: Event) => {
+      // Prevent default zoom behavior on focus
+      e.preventDefault();
+    };
+
+    const textarea = textareaRef.current;
+    if (textarea && isMobile) {
+      textarea.addEventListener('focus', preventZoom);
+      textarea.addEventListener('touchstart', preventZoom);
+      
+      return () => {
+        textarea.removeEventListener('focus', preventZoom);
+        textarea.removeEventListener('touchstart', preventZoom);
+      };
+    }
+  }, [isMobile]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -76,12 +96,13 @@ export default function FloatingChatWidget() {
     const userMessage = inputMessage.trim();
     setInputMessage('');
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-    setShowQuickOptions(false); // Hide quick options after user sends a message
+    setShowQuickOptions(false);
     setIsLoading(true);
 
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.fontSize = '16px'; // Prevent zoom on iOS
     }
 
     try {
@@ -114,7 +135,6 @@ export default function FloatingChatWidget() {
 
   const handleQuickOptionClick = (optionValue: string) => {
     setInputMessage(optionValue);
-    // Auto-send the quick option
     setTimeout(() => {
       const mockEvent = { preventDefault: () => {} } as React.FormEvent;
       handleSend(mockEvent);
@@ -124,7 +144,6 @@ export default function FloatingChatWidget() {
   const handleBookConsultation = () => {
     const bookingMessage = "I'd like to book a consultation";
     setInputMessage(bookingMessage);
-    // Auto-send the booking message
     setTimeout(() => {
       const mockEvent = { preventDefault: () => {} } as React.FormEvent;
       handleSend(mockEvent);
@@ -134,9 +153,10 @@ export default function FloatingChatWidget() {
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputMessage(e.target.value);
     
-    // Auto-resize textarea
+    // Auto-resize textarea without allowing excessive expansion
     e.target.style.height = 'auto';
-    e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
+    const newHeight = Math.min(e.target.scrollHeight, 80); // Limit max height
+    e.target.style.height = newHeight + 'px';
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -212,12 +232,12 @@ export default function FloatingChatWidget() {
       {/* Backdrop */}
       {isOpen && (
         <div 
-          className="fixed inset-0  bg-opacity-50 z-40"
+          className="fixed inset-0 bg-black bg-opacity-50 z-40"
           onClick={() => setIsOpen(false)}
         />
       )}
 
-      {/* Chat Widget */}
+      {/* Chat Widget - Full screen on mobile */}
       <div 
         className={`
           fixed z-50 bg-white shadow-2xl border border-gray-200
@@ -225,28 +245,20 @@ export default function FloatingChatWidget() {
           ${isMinimized 
             ? 'bottom-6 right-6 w-16 h-16 rounded-full' 
             : isMobile
-            ? 'inset-4 rounded-2xl'
+            ? 'inset-0 rounded-none' // Full screen on mobile
             : 'bottom-6 right-6 w-96 h-[600px] rounded-xl'
           }
         `}
-        style={
-          isMobile && !isMinimized ? {
-            top: '1rem',
-            left: '1rem',
-            right: '1rem',
-            bottom: '1rem',
-          } : {}
-        }
       >
         {!isMinimized ? (
           <div className="flex flex-col h-full w-full">
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 rounded-t-2xl flex justify-between items-center flex-shrink-0">
+            <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 flex justify-between items-center flex-shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                 <div>
                   <h3 className="font-bold text-sm">FitAI Assistant</h3>
-                  <p className="text-blue-100 text-xs">Online • Powered by Prestige AI</p>
+                  <p className="text-blue-100 text-xs">Online • Powered by Gemini AI</p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -260,10 +272,14 @@ export default function FloatingChatWidget() {
               </div>
             </div>
 
-            {/* Messages Area */}
+            {/* Messages Area - Takes most of the space */}
             <div 
               className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-gray-50 to-blue-50"
-              style={{ minHeight: 0 }}
+              style={{ 
+                minHeight: 0,
+                // Ensure messages area takes available space
+                height: isMobile ? 'calc(100vh - 140px)' : 'auto'
+              }}
             >
               {messages.map((message, index) => (
                 <div
@@ -289,7 +305,7 @@ export default function FloatingChatWidget() {
                 </div>
               ))}
 
-              {/* Quick Options - Show after first message and before user sends anything */}
+              {/* Quick Options */}
               {showQuickOptions && messages.length === 1 && (
                 <div className="space-y-3">
                   <div className="text-center text-gray-600 text-sm mb-2">
@@ -327,7 +343,7 @@ export default function FloatingChatWidget() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
+            {/* Input Area - Fixed height */}
             <div className="border-t bg-white p-3 flex-shrink-0">
               <form onSubmit={handleSend} className="space-y-2">
                 <div className="flex gap-2 items-end">
@@ -338,15 +354,19 @@ export default function FloatingChatWidget() {
                       onChange={handleTextareaChange}
                       onKeyPress={handleKeyPress}
                       placeholder="Type your message or fitness goal..."
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none min-h-[40px] max-h-[80px] bg-gray-50 text-gray-800 placeholder-gray-500 text-sm"
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none min-h-[44px] max-h-[80px] bg-gray-50 text-gray-800 placeholder-gray-500 text-base" // Increased font size to prevent zoom
                       disabled={isLoading}
                       rows={1}
+                      style={{ 
+                        fontSize: '16px', // Prevents zoom on iOS
+                        lineHeight: '1.4'
+                      }}
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={isLoading || !inputMessage.trim()}
-                    className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white p-2 rounded-xl transition-colors disabled:cursor-not-allowed flex items-center justify-center min-w-[40px] h-[40px]"
+                    className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white p-2 rounded-xl transition-colors disabled:cursor-not-allowed flex items-center justify-center min-w-[44px] h-[44px]" // Minimum touch target size
                   >
                     {isLoading ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -361,7 +381,7 @@ export default function FloatingChatWidget() {
                   <button
                     type="button"
                     onClick={resetChat}
-                    className="hover:text-blue-500 transition-colors"
+                    className="hover:text-blue-500 transition-colors py-1 px-2" // Added padding for better touch
                   >
                     New chat
                   </button>
@@ -370,7 +390,7 @@ export default function FloatingChatWidget() {
                   <button
                     type="button"
                     onClick={handleBookConsultation}
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1"
+                    className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-full text-xs font-medium transition-colors flex items-center gap-1" // Increased padding
                   >
                     <Calendar size={12} />
                     Book Consultation
