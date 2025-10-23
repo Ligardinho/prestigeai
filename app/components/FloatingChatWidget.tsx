@@ -258,7 +258,7 @@ export default function FloatingChatWidget() {
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                 <div>
                   <h3 className="font-bold text-sm">FitAI Assistant</h3>
-                  <p className="text-blue-100 text-xs">Online • Powered by Gemini AI</p>
+                  <p className="text-blue-100 text-xs">Online • Powered by Prestige AI</p>
                 </div>
               </div>
               <div className="flex gap-2">
