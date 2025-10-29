@@ -1,416 +1,442 @@
-// components/FloatingChatWidget.tsx
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { X, MessageCircle, Minimize2, Calendar } from 'lucide-react';
+import { X, MessageCircle, Calendar, RotateCcw } from 'lucide-react';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
 }
 
+interface UserData {
+  goal?: string;
+  experience?: string;
+  frequency?: string;
+  timeline?: string;
+  name?: string;
+  email?: string;
+}
+
+const QUALIFICATION_STEPS = [
+  { key: 'goal', question: "What's your main fitness goal?", options: ["💪 Strength Training", "🏋️ Muscle Building", "🔥 Weight Loss", "🎯 General Fitness", "⚡ Sports Performance", "🔄 Toning"] },
+  { key: 'experience', question: "What's your current experience level?", options: ["🚀 Beginner (0-6 months)", "📈 Intermediate (6 months - 2 years)", "🏆 Advanced (2+ years)"] },
+  { key: 'frequency', question: "How many days per week can you train?", options: ["2-3 days per week", "4-5 days per week"] },
+  { key: 'timeline', question: "When would you like to get started?", options: ["💨 ASAP - Ready to start now", "📅 Within 2 weeks", "🗓️ Within a month"] },
+  { key: 'name', question: "Great! What's your name?", options: null },
+  { key: 'email', question: "Perfect! What's the best email to reach you?", options: null }
+];
+
 export default function FloatingChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'assistant',
-      content: "👋 **Welcome to FitAI!** \n\nI'm here to help you achieve your fitness goals and see if our training program is the right fit for you!\n\nWhat would you like to accomplish with your fitness journey?"
-    }
+    { role: 'assistant', content: "👋 **Welcome to FitAI!** \n\nI'm here to help you achieve your fitness goals!\n\nWhat would you like to accomplish with your fitness journey?" }
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showQuickOptions, setShowQuickOptions] = useState(false);
+  const [dynamicOptions, setDynamicOptions] = useState<string[]>([]);
+  const [readyForBooking, setReadyForBooking] = useState(false);
+  const [userData, setUserData] = useState<UserData>({});
+  const [currentStep, setCurrentStep] = useState(0);
+  const [showThinking, setShowThinking] = useState(false);
+  const [hasSentCalendly, setHasSentCalendly] = useState(false);
+  const [conversationComplete, setConversationComplete] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [showQuickOptions, setShowQuickOptions] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Quick options for common fitness goals
-  const quickOptions = [
-    { label: '💪 Strength Training', value: 'I want to build strength and get stronger' },
-    { label: '🏋️ Muscle Building', value: 'I want to build muscle and gain size' },
-    { label: '🔥 Weight Loss', value: 'I want to lose weight and burn fat' },
-    { label: '🎯 General Fitness', value: 'I want to improve my overall fitness' },
-    { label: '⚡ Sports Performance', value: 'I want to improve my sports performance' },
-    { label: '🔄 Toning', value: 'I want to tone and define my muscles' }
-  ];
-
-  // Check if mobile on mount and handle resize
   useEffect(() => {
     const checkMobile = () => {
-      const mobile = window.innerWidth < 768;
+      const mobile = window.innerWidth < 1024; // Tablet portrait and below
       setIsMobile(mobile);
     };
     
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Prevent zoom on focus for mobile devices
-  useEffect(() => {
-    const preventZoom = (e: Event) => {
-      // Prevent default zoom behavior on focus
-      e.preventDefault();
-    };
-
-    const textarea = textareaRef.current;
-    if (textarea && isMobile) {
-      textarea.addEventListener('focus', preventZoom);
-      textarea.addEventListener('touchstart', preventZoom);
-      
-      return () => {
-        textarea.removeEventListener('focus', preventZoom);
-        textarea.removeEventListener('touchstart', preventZoom);
-      };
-    }
-  }, [isMobile]);
-
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
-
-  // Focus input when chat opens
-  useEffect(() => {
-    if (isOpen && textareaRef.current && !isMinimized) {
-      setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 100);
-    }
-  }, [isOpen, isMinimized]);
+  }, [messages, showThinking]);
 
   const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ 
-        behavior: "smooth",
-        block: "end"
-      });
-    }, 100);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputMessage.trim() || isLoading) return;
+  // Simulate human-like delay
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-    const userMessage = inputMessage.trim();
-    setInputMessage('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+  const handleSend = async (messageText?: string) => {
+    const textToSend = messageText || inputMessage.trim();
+    if (!textToSend || isLoading) return;
+
+    if (!messageText) {
+      setInputMessage('');
+    }
+
+    // Add user message
+    const userMessage: ChatMessage = { role: 'user', content: textToSend };
+    const newMessages: ChatMessage[] = [...messages, userMessage];
+    
+    setMessages(newMessages);
     setShowQuickOptions(false);
     setIsLoading(true);
-
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.fontSize = '16px'; // Prevent zoom on iOS
-    }
+    setShowThinking(true);
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: userMessage,
-          conversationHistory: messages
-        }),
-      });
-
-      const data = await response.json();
-      
-      if (data.response) {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
-      } else {
-        throw new Error(data.error || 'No response from AI');
+      // If conversation is complete (after Calendly sent), just respond normally
+      if (conversationComplete) {
+        await delay(1000 + Math.random() * 2000);
+        
+        // Create encouraging responses that nudge toward booking
+        const encouragingResponses = [
+          "I'm really excited to work with you! Have you had a chance to check the booking link? Spots are filling up fast this week! 🚀",
+          "Just a friendly reminder - the consultation is completely free and we can get started right away. Did the booking link work for you?",
+          "I noticed you're still here! If you're having any trouble with the booking link or have questions, let me know. Otherwise, I'd grab a spot soon! ⏰",
+          "The best time to start your fitness journey is now! Have you picked a consultation time yet? I'm excited to help you achieve your goals! 💪",
+          "Don't wait too long to book - motivation is highest right after making the decision! Need help with the booking process?",
+          "I'm here if you have any questions about the consultation! Otherwise, I'd recommend booking soon to secure your preferred time. 📅"
+        ];
+        
+        const randomResponse = encouragingResponses[Math.floor(Math.random() * encouragingResponses.length)];
+        const assistantMessage: ChatMessage = { 
+          role: 'assistant', 
+          content: randomResponse 
+        };
+        
+        setMessages(prev => [...prev, assistantMessage]);
+        setIsLoading(false);
+        setShowThinking(false);
+        return;
       }
+
+      // If we're at the booking stage and user says yes/sure/etc, send Calendly link
+      if (readyForBooking && !hasSentCalendly && isPositiveResponse(textToSend)) {
+        await delay(1000);
+        setShowThinking(false);
+        
+        const calendlyLink = "https://calendly.com/your-username/fitai-consultation";
+        const bookingMessage: ChatMessage = { 
+          role: 'assistant', 
+          content: `✅ **Perfect! Let's get you scheduled!**\n\nHere's my Calendly link to book your free consultation:\n\n📅 **Book Your Session:** ${calendlyLink}\n\nI recommend booking soon as spots fill up quickly! Once you've picked a time, you'll get a confirmation email with all the details.\n\n**Pro tip:** Book now while you're motivated! I'm excited to help you achieve your fitness goals! 🏋️‍♂️` 
+        };
+        
+        setMessages(prev => [...prev, bookingMessage]);
+        setHasSentCalendly(true);
+        setConversationComplete(true); // Mark conversation as complete
+        
+        // Auto-open Calendly in a new tab after a brief delay
+        setTimeout(() => {
+          window.open(calendlyLink, '_blank', 'noopener,noreferrer');
+        }, 2000);
+        
+        setIsLoading(false);
+        return;
+      }
+
+      // Update user data based on current step
+      const stepKey = QUALIFICATION_STEPS[currentStep].key as keyof UserData;
+      const updatedUserData = { ...userData, [stepKey]: textToSend };
+      setUserData(updatedUserData);
+
+      // Simulate AI thinking time (1-3 seconds for realism)
+      await delay(1000 + Math.random() * 2000);
+
+      // Move to next step if there are more
+      if (currentStep < QUALIFICATION_STEPS.length - 1) {
+        const nextStep = currentStep + 1;
+        setCurrentStep(nextStep);
+        
+        const nextQuestion = QUALIFICATION_STEPS[nextStep];
+        const assistantMessage: ChatMessage = { 
+          role: 'assistant', 
+          content: nextQuestion.question 
+        };
+        
+        setMessages(prev => [...prev, assistantMessage]);
+        
+        if (nextQuestion.options) {
+          setDynamicOptions(nextQuestion.options);
+          setShowQuickOptions(true);
+        } else {
+          setDynamicOptions([]);
+          setShowQuickOptions(false);
+        }
+      } else {
+        // All steps completed - show summary with a bit longer delay for the final response
+        await delay(1500);
+        
+        const summary = `
+**Perfect! Here's your fitness profile:**
+
+🎯 **Goal:** ${updatedUserData.goal}
+💪 **Experience:** ${updatedUserData.experience}  
+📅 **Availability:** ${updatedUserData.frequency}
+🚀 **Timeline:** ${updatedUserData.timeline}
+👤 **Name:** ${updatedUserData.name}
+📧 **Email:** ${updatedUserData.email}
+
+Based on your goals, you're a great fit for our program! **Ready to book your free consultation?**
+        `.trim();
+
+        const assistantMessage: ChatMessage = { 
+          role: 'assistant', 
+          content: summary 
+        };
+        
+        setMessages(prev => [...prev, assistantMessage]);
+        setReadyForBooking(true);
+      }
+
     } catch (error) {
-      console.error('Error sending message:', error);
-      setMessages(prev => [...prev, { 
+      console.error('Error:', error);
+      await delay(1000);
+      const errorMessage: ChatMessage = { 
         role: 'assistant', 
-        content: "❌ **Connection Issue** \n\nSorry, I'm having trouble connecting. Please try again." 
-      }]);
+        content: "❌ **Connection Issue** \n\nPlease try again." 
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+      setShowThinking(false);
     }
   };
 
+  // Check if user response is positive for booking
+  const isPositiveResponse = (text: string): boolean => {
+    const positiveWords = ['yes', 'sure', 'ready', 'book', 'schedule', 'consult', 'lets go', "let's go", 'ok', 'okay', 'yeah', 'yep', 'yup', 'absolutely', 'definitely'];
+    return positiveWords.some(word => text.toLowerCase().includes(word));
+  };
+
+  // Handle form submission
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleSend();
+  };
+
+  // Handle quick option click - AUTO-SENDS immediately
   const handleQuickOptionClick = (optionValue: string) => {
-    setInputMessage(optionValue);
-    setTimeout(() => {
-      const mockEvent = { preventDefault: () => {} } as React.FormEvent;
-      handleSend(mockEvent);
-    }, 100);
+    handleSend(optionValue);
   };
 
-  const handleBookConsultation = () => {
-    const bookingMessage = "I'd like to book a consultation";
-    setInputMessage(bookingMessage);
-    setTimeout(() => {
-      const mockEvent = { preventDefault: () => {} } as React.FormEvent;
-      handleSend(mockEvent);
-    }, 100);
-  };
-
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputMessage(e.target.value);
+  const handleBookConsult = async () => {
+    const calendlyLink = "https://calendly.com/your-username/fitai-consultation";
     
-    // Auto-resize textarea without allowing excessive expansion
-    e.target.style.height = 'auto';
-    const newHeight = Math.min(e.target.scrollHeight, 80); // Limit max height
-    e.target.style.height = newHeight + 'px';
+    // Show brief thinking before confirmation
+    setShowThinking(true);
+    await delay(800);
+    setShowThinking(false);
+    
+    const bookingMessage: ChatMessage = { 
+      role: 'assistant', 
+      content: `✅ **Let's get you scheduled!**\n\nHere's my Calendly link to book your free consultation:\n\n📅 **Book Your Session:** ${calendlyLink}\n\nI recommend booking soon as spots fill up quickly! I'm excited to help you achieve:\n• ${userData.goal}\n• ${userData.experience} level training\n• ${userData.frequency}\n\n**Don't wait** - the best time to start is now! 🏋️‍♂️` 
+    };
+    
+    setMessages(prev => [...prev, bookingMessage]);
+    setHasSentCalendly(true);
+    setConversationComplete(true); // Mark conversation as complete
+    
+    // Auto-open Calendly in a new tab after a brief delay
+    setTimeout(() => {
+      window.open(calendlyLink, '_blank', 'noopener,noreferrer');
+    }, 1500);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend(e);
-    }
-  };
-
-  const toggleChat = () => {
-    if (isOpen && isMinimized) {
-      setIsMinimized(false);
-    } else if (isOpen) {
-      setIsOpen(false);
-      setIsMinimized(false);
-    } else {
-      setIsOpen(true);
-      setIsMinimized(false);
-    }
-  };
-
-  const minimizeChat = () => {
-    if (isMobile) {
-      setIsOpen(false);
-    } else {
-      setIsMinimized(true);
-    }
-  };
-
-  const resetChat = () => {
+  // Reset chat to initial state
+  const handleNewChat = () => {
     setMessages([
-      {
-        role: 'assistant',
-        content: "👋 **Welcome to FitAI!** \n\nI'm here to help you achieve your fitness goals and see if our training program is the right fit for you!\n\nWhat would you like to accomplish with your fitness journey?"
-      }
+      { role: 'assistant', content: "👋 **Welcome to FitAI!** \n\nI'm here to help you achieve your fitness goals!\n\nWhat would you like to accomplish with your fitness journey?" }
     ]);
-    setShowQuickOptions(true);
+    setInputMessage('');
+    setShowQuickOptions(false);
+    setDynamicOptions([]);
+    setReadyForBooking(false);
+    setUserData({});
+    setCurrentStep(0);
+    setHasSentCalendly(false);
+    setConversationComplete(false);
   };
 
-  // Format message content for display
-  const formatMessageDisplay = (content: string) => {
-    const parts = content.split(/(\*\*.*?\*\*)/g);
-    
-    return parts.map((part, index) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        const boldContent = part.slice(2, -2);
-        return (
-          <strong key={index} className="font-semibold text-blue-800">
-            {boldContent}
-          </strong>
-        );
-      }
-      
-      return <span key={index}>{part}</span>;
-    });
+  const formatMessage = (content: string) => {
+    return content.split('\n').map((line, index) => (
+      <div key={index} className={line.startsWith('**') && line.endsWith('**') ? 'font-semibold text-blue-800' : ''}>
+        {line.replace(/\*\*/g, '')}
+      </div>
+    ));
   };
+
+  // Thinking indicator component
+  const ThinkingIndicator = () => (
+    <div className="flex justify-start">
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-md max-w-[85%]">
+        <div className="flex items-center gap-3">
+          <div className="flex space-x-1">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs font-medium text-gray-700">FitAI is thinking</span>
+            <span className="text-xs text-gray-500">Crafting your personalized response...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   if (!isOpen) {
     return (
       <button
-        onClick={toggleChat}
-        className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
-        aria-label="Open chat"
+        onClick={() => setIsOpen(true)}
+        className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-full shadow-lg hover:scale-110 transition-all"
       >
         <MessageCircle size={24} />
-        <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+        <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-600 rounded-full animate-pulse" />
       </button>
     );
   }
 
   return (
-    <>
-      {/* Backdrop */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-
-      {/* Chat Widget - Full screen on mobile */}
-      <div 
-        className={`
-          fixed z-50 bg-white shadow-2xl border border-gray-200
-          flex flex-col transition-all duration-300
-          ${isMinimized 
-            ? 'bottom-6 right-6 w-16 h-16 rounded-full' 
-            : isMobile
-            ? 'inset-0 rounded-none' // Full screen on mobile
-            : 'bottom-6 right-6 w-96 h-[600px] rounded-xl'
-          }
-        `}
-      >
-        {!isMinimized ? (
-          <div className="flex flex-col h-full w-full">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 flex justify-between items-center flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <div>
-                  <h3 className="font-bold text-sm">FitAI Assistant</h3>
-                  <p className="text-blue-100 text-xs">Online • Powered by Prestige AI</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={minimizeChat}
-                  className="text-white hover:text-blue-200 transition-colors"
-                  aria-label={isMobile ? "Close chat" : "Minimize chat"}
-                >
-                  {isMobile ? <X size={18} /> : <Minimize2 size={18} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Messages Area - Takes most of the space */}
-            <div 
-              className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-gray-50 to-blue-50"
-              style={{ 
-                minHeight: 0,
-                // Ensure messages area takes available space
-                height: isMobile ? 'calc(100vh - 140px)' : 'auto'
-              }}
+    <div className={`
+      fixed z-50 bg-white shadow-2xl flex flex-col
+      ${isMobile 
+        ? 'inset-0 rounded-none' 
+        : 'bottom-6 right-6 w-96 h-[600px] rounded-xl'
+      }
+    `}>
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <div>
+            <h3 className="font-bold text-sm">FitAI Assistant</h3>
+            <p className="text-blue-100 text-xs">Online • Powered by Prestige AI</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {readyForBooking && !hasSentCalendly && (
+            <button
+              onClick={handleBookConsult}
+              className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
             >
-              {messages.map((message, index) => (
-                <div
-                  key={index}
-                  className={`flex ${
-                    message.role === 'user' ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  <div
-                    className={`
-                      rounded-2xl p-3 max-w-[85%] break-words
-                      ${
-                        message.role === 'user'
-                          ? 'bg-blue-500 text-white rounded-br-none shadow-md'
-                          : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none shadow-md'
-                      }
-                    `}
-                  >
-                    <div className="text-sm leading-relaxed whitespace-pre-wrap">
-                      {formatMessageDisplay(message.content)}
-                    </div>
-                  </div>
-                </div>
-              ))}
+              <Calendar size={12} />
+              {isMobile ? 'Book' : 'Book Consult'}
+            </button>
+          )}
+          <button 
+            onClick={() => setIsOpen(false)} 
+            className="text-white hover:text-blue-200"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      </div>
 
-              {/* Quick Options */}
-              {showQuickOptions && messages.length === 1 && (
-                <div className="space-y-3">
-                  <div className="text-center text-gray-600 text-sm mb-2">
-                    Or choose a common goal:
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {quickOptions.map((option, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleQuickOptionClick(option.value)}
-                        className="bg-white border border-gray-300 hover:border-blue-500 hover:bg-blue-50 text-gray-800 px-3 py-2 rounded-xl text-sm transition-all duration-200 hover:shadow-md flex items-center justify-center text-center h-14"
-                      >
-                        <span className="text-xs font-medium">{option.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Loading Indicator */}
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none p-3 shadow-md">
-                    <div className="flex items-center gap-2">
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                      </div>
-                      <span className="text-xs text-gray-600">FitAI is thinking...</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input Area - Fixed height */}
-            <div className="border-t bg-white p-3 flex-shrink-0">
-              <form onSubmit={handleSend} className="space-y-2">
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1">
-                    <textarea
-                      ref={textareaRef}
-                      value={inputMessage}
-                      onChange={handleTextareaChange}
-                      onKeyPress={handleKeyPress}
-                      placeholder="Type your message or fitness goal..."
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none min-h-[44px] max-h-[80px] bg-gray-50 text-gray-800 placeholder-gray-500 text-base" // Increased font size to prevent zoom
-                      disabled={isLoading}
-                      rows={1}
-                      style={{ 
-                        fontSize: '16px', // Prevents zoom on iOS
-                        lineHeight: '1.4'
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={isLoading || !inputMessage.trim()}
-                    className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white p-2 rounded-xl transition-colors disabled:cursor-not-allowed flex items-center justify-center min-w-[44px] h-[44px]" // Minimum touch target size
-                  >
-                    {isLoading ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                <div className="flex justify-between items-center text-xs text-gray-500 px-1">
-                  <button
-                    type="button"
-                    onClick={resetChat}
-                    className="hover:text-blue-500 transition-colors py-1 px-2" // Added padding for better touch
-                  >
-                    New chat
-                  </button>
-                  
-                  {/* Book Consultation Button */}
-                  <button
-                    type="button"
-                    onClick={handleBookConsultation}
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-full text-xs font-medium transition-colors flex items-center gap-1" // Increased padding
-                  >
-                    <Calendar size={12} />
-                    Book Consultation
-                  </button>
-                </div>
-              </form>
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-gray-50 to-blue-50">
+        {messages.map((message, index) => (
+          <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`
+              rounded-2xl p-3 shadow-md
+              ${message.role === 'user'
+                ? 'bg-blue-500 text-white rounded-br-none max-w-[85%]'
+                : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none max-w-[85%]'
+              }
+              ${isMobile ? 'max-w-[90%]' : 'max-w-[85%]'}
+            `}>
+              <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                {formatMessage(message.content)}
+              </div>
             </div>
           </div>
-        ) : (
-          // Minimized State
-          <button
-            onClick={toggleChat}
-            className="w-full h-full bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-            aria-label="Open chat"
-          >
-            <MessageCircle size={24} />
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-          </button>
+        ))}
+
+        {/* Show thinking indicator when AI is processing */}
+        {showThinking && <ThinkingIndicator />}
+
+        {/* Initial Quick Options */}
+        {messages.length === 1 && !showThinking && !conversationComplete && (
+          <div className="space-y-3 mt-2">
+            <div className="text-center text-gray-600 text-sm mb-2">Choose a common goal:</div>
+            <div className={`grid gap-2 ${isMobile ? 'grid-cols-2' : 'grid-cols-2'}`}>
+              {QUALIFICATION_STEPS[0].options?.map((option, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleQuickOptionClick(option)}
+                  disabled={isLoading}
+                  className="bg-white border border-gray-300 hover:border-blue-500 hover:bg-blue-50 text-gray-800 px-3 py-2 rounded-xl text-sm flex items-center justify-center h-14 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="text-xs font-medium text-center">{option}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
+
+        {/* Dynamic Quick Options */}
+        {showQuickOptions && dynamicOptions.length > 0 && !showThinking && !conversationComplete && (
+          <div className="space-y-3 mt-2">
+            <div className="text-center text-gray-600 text-sm mb-2">Choose an option:</div>
+            <div className={`grid gap-2 ${isMobile ? 'grid-cols-2' : 'grid-cols-2'}`}>
+              {dynamicOptions.map((option, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleQuickOptionClick(option)}
+                  disabled={isLoading}
+                  className="bg-white border border-gray-300 hover:border-blue-500 hover:bg-blue-50 text-gray-800 px-3 py-2 rounded-xl text-sm flex items-center justify-center h-14 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="text-xs font-medium text-center">{option}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
-    </>
+
+      {/* Input Area */}
+      <div className="border-t border-gray-300 bg-white">
+        {/* New Chat Button - Light gray at bottom */}
+        <div className="px-3 pt-2">
+          <button
+            onClick={handleNewChat}
+            className="w-full text-gray-400 hover:text-gray-600 text-xs py-2 flex items-center justify-center gap-1 transition-all hover:bg-gray-50 rounded-lg"
+          >
+            <RotateCcw size={12} />
+            New Chat
+          </button>
+        </div>
+        
+        {/* Input Form */}
+        <form onSubmit={handleFormSubmit} className="p-3 flex-shrink-0 flex gap-2">
+          <input
+            type="text"
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            placeholder={isLoading ? "FitAI is thinking..." : "Type your message..."}
+            className="flex-1 border border-gray-300 rounded-xl px-3 py-2 focus:ring-1 focus:ring-blue-500 text-sm disabled:bg-gray-50 disabled:cursor-not-allowed"
+            disabled={isLoading}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !inputMessage.trim()}
+            className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white p-2 rounded-xl flex items-center justify-center transition-all disabled:cursor-not-allowed"
+          >
+            {isLoading ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+              </svg>
+            )}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
