@@ -2,9 +2,17 @@
 import { generateAIResponse } from '@/lib/gemini';
 import { NextResponse } from 'next/server';
 
+interface RequestBody {
+  message: string;
+  conversationHistory: Array<{
+    role: string;
+    content: string;
+  }>;
+}
+
 export async function POST(request: Request) {
   try {
-    const { message, conversationHistory } = await request.json();
+    const { message, conversationHistory }: RequestBody = await request.json();
     
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
