@@ -15,6 +15,7 @@ interface RootLayoutProps {
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       <body className="relative" suppressHydrationWarning>
         {children}
         <FloatingChatWidget />
