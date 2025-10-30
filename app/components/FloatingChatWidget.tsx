@@ -17,13 +17,75 @@ interface UserData {
 }
 
 const QUALIFICATION_STEPS = [
-  { key: 'goal', question: "What's your main fitness goal?", options: ["💪 Strength Training", "🏋️ Muscle Building", "🔥 Weight Loss", "🎯 General Fitness", "⚡ Sports Performance", "🔄 Toning"] },
-  { key: 'experience', question: "What's your current experience level?", options: ["🚀 Beginner (0-6 months)", "📈 Intermediate (6 months - 2 years)", "🏆 Advanced (2+ years)"] },
-  { key: 'frequency', question: "How many days per week can you train?", options: ["2-3 days per week", "4-5 days per week"] },
-  { key: 'timeline', question: "When would you like to get started?", options: ["💨 ASAP - Ready to start now", "📅 Within 2 weeks", "🗓️ Within a month"] },
-  { key: 'name', question: "Great! What's your name?", options: null },
-  { key: 'email', question: "Perfect! What's the best email to reach you?", options: null }
+  { 
+    key: 'goal', 
+    question: "What's your main fitness goal?", 
+    options: ["💪 Strength Training", "🏋️ Muscle Building", "🔥 Weight Loss", "🎯 General Fitness", "⚡ Sports Performance", "🔄 Toning"],
+    validation: (answer: string) => isValidOption(answer, ["strength", "muscle", "weight", "general", "sports", "toning"])
+  },
+  { 
+    key: 'experience', 
+    question: "What's your current experience level?", 
+    options: ["🚀 Beginner (0-6 months)", "📈 Intermediate (6 months - 2 years)", "🏆 Advanced (2+ years)"],
+    validation: (answer: string) => isValidOption(answer, ["beginner", "intermediate", "advanced"])
+  },
+  { 
+    key: 'frequency', 
+    question: "How many days per week can you train?", 
+    options: ["2-3 days per week", "4-5 days per week"],
+    validation: (answer: string) => isValidOption(answer, ["2-3", "4-5", "days"])
+  },
+  { 
+    key: 'timeline', 
+    question: "When would you like to get started?", 
+    options: ["💨 ASAP - Ready to start now", "📅 Within 2 weeks", "🗓️ Within a month"],
+    validation: (answer: string) => isValidOption(answer, ["asap", "weeks", "month"])
+  },
+  { 
+    key: 'name', 
+    question: "Great! What's your name?", 
+    options: null,
+    validation: (answer: string) => isValidName(answer)
+  },
+  { 
+    key: 'email', 
+    question: "Perfect! What's the best email to reach you?", 
+    options: null,
+    validation: (answer: string) => isValidEmail(answer)
+  }
 ];
+
+// Validation helper functions
+function isValidOption(answer: string, keywords: string[]): boolean {
+  const lowerAnswer = answer.toLowerCase();
+  return keywords.some(keyword => lowerAnswer.includes(keyword)) || 
+         QUALIFICATION_STEPS.some(step => 
+           step.options?.some(opt => lowerAnswer.includes(opt.toLowerCase()))
+         );
+}
+
+function isValidName(answer: string): boolean {
+  // Basic name validation - should be 2+ characters, no numbers, not an option
+  if (answer.length < 2) return false;
+  if (/\d/.test(answer)) return false;
+  
+  // Check if it matches any of the option patterns
+  const allOptions = QUALIFICATION_STEPS.flatMap(step => step.options || []);
+  const isOption = allOptions.some(opt => answer.toLowerCase().includes(opt.toLowerCase()));
+  
+  return !isOption;
+}
+
+function isValidEmail(answer: string): boolean {
+  // Basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(answer);
+}
+
+function isPositiveResponse(text: string): boolean {
+  const positiveWords = ['yes', 'sure', 'ready', 'book', 'schedule', 'consult', 'lets go', "let's go", 'ok', 'okay', 'yeah', 'yep', 'yup', 'absolutely', 'definitely'];
+  return positiveWords.some(word => text.toLowerCase().includes(word));
+}
 
 export default function FloatingChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -46,7 +108,7 @@ export default function FloatingChatWidget() {
 
   useEffect(() => {
     const checkMobile = () => {
-      const mobile = window.innerWidth < 1024; // Tablet portrait and below
+      const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
     };
     
@@ -63,7 +125,6 @@ export default function FloatingChatWidget() {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   };
 
-  // Simulate human-like delay
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   const handleSend = async (messageText?: string) => {
@@ -88,7 +149,6 @@ export default function FloatingChatWidget() {
       if (conversationComplete) {
         await delay(1000 + Math.random() * 2000);
         
-        // Create encouraging responses that nudge toward booking
         const encouragingResponses = [
           "I'm really excited to work with you! Have you had a chance to check the booking link? Spots are filling up fast this week! 🚀",
           "Just a friendly reminder - the consultation is completely free and we can get started right away. Did the booking link work for you?",
@@ -123,9 +183,8 @@ export default function FloatingChatWidget() {
         
         setMessages(prev => [...prev, bookingMessage]);
         setHasSentCalendly(true);
-        setConversationComplete(true); // Mark conversation as complete
+        setConversationComplete(true);
         
-        // Auto-open Calendly in a new tab after a brief delay
         setTimeout(() => {
           window.open(calendlyLink, '_blank', 'noopener,noreferrer');
         }, 2000);
@@ -134,12 +193,44 @@ export default function FloatingChatWidget() {
         return;
       }
 
-      // Update user data based on current step
-      const stepKey = QUALIFICATION_STEPS[currentStep].key as keyof UserData;
+      // Get current step and validate the answer
+      const currentStepData = QUALIFICATION_STEPS[currentStep];
+      const isValidAnswer = currentStepData.validation(textToSend);
+
+      if (!isValidAnswer) {
+        // Invalid answer - ask the question again with guidance
+        await delay(1000);
+        
+        let errorMessage = "";
+        if (currentStepData.options) {
+          errorMessage = `I didn't quite understand that. ${currentStepData.question}\n\nPlease choose one of the options or specify your answer clearly.`;
+        } else {
+          errorMessage = `I didn't quite understand that. ${currentStepData.question}\n\nPlease provide a valid ${currentStepData.key === 'name' ? 'name' : 'email address'}.`;
+        }
+        
+        const assistantMessage: ChatMessage = { 
+          role: 'assistant', 
+          content: errorMessage 
+        };
+        
+        setMessages(prev => [...prev, assistantMessage]);
+        
+        // Show options again if available
+        if (currentStepData.options) {
+          setDynamicOptions(currentStepData.options);
+          setShowQuickOptions(true);
+        }
+        
+        setIsLoading(false);
+        setShowThinking(false);
+        return;
+      }
+
+      // Valid answer - update user data and move to next step
+      const stepKey = currentStepData.key as keyof UserData;
       const updatedUserData = { ...userData, [stepKey]: textToSend };
       setUserData(updatedUserData);
 
-      // Simulate AI thinking time (1-3 seconds for realism)
       await delay(1000 + Math.random() * 2000);
 
       // Move to next step if there are more
@@ -163,7 +254,7 @@ export default function FloatingChatWidget() {
           setShowQuickOptions(false);
         }
       } else {
-        // All steps completed - show summary with a bit longer delay for the final response
+        // All steps completed - show summary
         await delay(1500);
         
         const summary = `
@@ -202,12 +293,6 @@ Based on your goals, you're a great fit for our program! **Ready to book your fr
     }
   };
 
-  // Check if user response is positive for booking
-  const isPositiveResponse = (text: string): boolean => {
-    const positiveWords = ['yes', 'sure', 'ready', 'book', 'schedule', 'consult', 'lets go', "let's go", 'ok', 'okay', 'yeah', 'yep', 'yup', 'absolutely', 'definitely'];
-    return positiveWords.some(word => text.toLowerCase().includes(word));
-  };
-
   // Handle form submission
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,7 +307,6 @@ Based on your goals, you're a great fit for our program! **Ready to book your fr
   const handleBookConsult = async () => {
     const calendlyLink = "https://calendly.com/your-username/fitai-consultation";
     
-    // Show brief thinking before confirmation
     setShowThinking(true);
     await delay(800);
     setShowThinking(false);
@@ -234,9 +318,8 @@ Based on your goals, you're a great fit for our program! **Ready to book your fr
     
     setMessages(prev => [...prev, bookingMessage]);
     setHasSentCalendly(true);
-    setConversationComplete(true); // Mark conversation as complete
+    setConversationComplete(true);
     
-    // Auto-open Calendly in a new tab after a brief delay
     setTimeout(() => {
       window.open(calendlyLink, '_blank', 'noopener,noreferrer');
     }, 1500);
@@ -287,7 +370,6 @@ Based on your goals, you're a great fit for our program! **Ready to book your fr
   if (!isOpen) {
     return (
       <>
-        {/* Prevent zoom on mobile */}
         <style jsx global>{`
           input[type="text"] {
             font-size: 16px !important;
@@ -309,7 +391,6 @@ Based on your goals, you're a great fit for our program! **Ready to book your fr
 
   return (
     <>
-      {/* Prevent zoom on mobile */}
       <style jsx global>{`
         input[type="text"] {
           font-size: 16px !important;
@@ -323,7 +404,7 @@ Based on your goals, you're a great fit for our program! **Ready to book your fr
         fixed z-50 bg-white shadow-2xl flex flex-col
         ${isMobile 
           ? 'inset-0 rounded-none' 
-          : 'bottom-6 right-6 w-96 h-[600px] rounded-xl border'
+          : 'bottom-6 right-6 w-96 h-[600px] rounded-xl'
         }
       `}>
         {/* Header */}
@@ -373,7 +454,6 @@ Based on your goals, you're a great fit for our program! **Ready to book your fr
             </div>
           ))}
 
-          {/* Show thinking indicator when AI is processing */}
           {showThinking && <ThinkingIndicator />}
 
           {/* Initial Quick Options */}
@@ -419,7 +499,6 @@ Based on your goals, you're a great fit for our program! **Ready to book your fr
 
         {/* Input Area */}
         <div className="border-t border-gray-300 bg-white">
-          {/* New Chat Button - Light gray at bottom */}
           <div className="px-3 pt-2">
             <button
               onClick={handleNewChat}
@@ -430,7 +509,6 @@ Based on your goals, you're a great fit for our program! **Ready to book your fr
             </button>
           </div>
           
-          {/* Input Form */}
           <form onSubmit={handleFormSubmit} className="p-3 flex-shrink-0 flex gap-2">
             <input
               ref={inputRef}
@@ -446,7 +524,7 @@ Based on your goals, you're a great fit for our program! **Ready to book your fr
                   handleSend();
                 }
               }}
-              style={{ fontSize: '16px' }} // Prevent zoom on iOS
+              style={{ fontSize: '16px' }}
             />
             <button
               type="submit"
